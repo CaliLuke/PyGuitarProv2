@@ -192,7 +192,7 @@ class GP5File(gp4.GP4File):
           * pageNumber
         """
         setup = gp.PageSetup()
-        setup.pageSize = gp.Point(self.readInt(), self.readInt())
+        setup.pageSize = gp.Point(x=self.readInt(), y=self.readInt())
         left = self.readInt()
         right = self.readInt()
         top = self.readInt()

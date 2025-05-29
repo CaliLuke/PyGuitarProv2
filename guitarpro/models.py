@@ -5,6 +5,7 @@ from math import log
 from typing import Any, Callable, List, Optional, Tuple, TypeVar, Union, overload
 
 import attr
+from pydantic import BaseModel
 
 __all__ = [
     'GPException', 'RepeatGroup', 'Clipboard', 'KeySignature', 'Song',
@@ -202,9 +203,9 @@ class Lyrics:
         return ret
 
 
-@hashableAttrs
-class Point:
+class Point(BaseModel):
     """A point construct using integer coordinates."""
+    model_config = {"frozen": True}
 
     x: int
     y: int
@@ -264,7 +265,7 @@ class PageSetup:
       by layout)
     """
 
-    pageSize: Point = Point(210, 297)
+    pageSize: Point = Point(x=210, y=297)
     pageMargin: Padding = Padding(10, 15, 10, 10)
     scoreSizeProportion: float = 1.0
     headerAndFooter: HeaderFooterElements = HeaderFooterElements.all
