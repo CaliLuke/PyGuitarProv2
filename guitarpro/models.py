@@ -315,6 +315,7 @@ class Song:
     """
 
     # TODO: Store file format version here
+    version: Optional[str] = attr.field(default=None, eq=False)  # Raw version string, e.g., "FICHIER GUITAR PRO v3.00"
     versionTuple: Optional[Tuple[int, int, int]] = attr.ib(default=None, hash=False, eq=False)
     clipboard: Optional[Clipboard] = None
     title: str = ''
