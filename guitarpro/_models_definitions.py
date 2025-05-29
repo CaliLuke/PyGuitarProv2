@@ -7,8 +7,10 @@ from typing import Any, Callable, List, Optional, Tuple, TypeVar, Union, overloa
 import attr
 from pydantic import BaseModel
 
+from .exceptions import GPException
+
 __all__ = [
-    'GPException', 'RepeatGroup', 'Clipboard', 'KeySignature', 'Song',
+    'RepeatGroup', 'Clipboard', 'KeySignature', 'Song', # Removed GPException
     'LyricLine', 'Lyrics', 'Point', 'Padding', 'HeaderFooterElements',
     'PageSetup', 'MidiChannel', 'DirectionSign', 'Tuplet', 'Duration',
     'TimeSignature', 'TripletFeel', 'MeasureHeader', 'Color', 'Marker',
@@ -26,8 +28,7 @@ __all__ = [
 ]
 
 
-class GPException(Exception):
-    pass
+# GPException class removed from here
 
 
 class LenientEnum(Enum):
@@ -317,7 +318,7 @@ class Song:
 
     # TODO: Store file format version here
     version: Optional[str] = attr.field(default=None, eq=False)  # Raw version string, e.g., "FICHIER GUITAR PRO v3.00"
-    versionTuple: Optional[Tuple[int, int, int]] = attr.ib(default=None, hash=False, eq=False)
+    versionTuple: Optional[Tuple[int, ...]] = attr.ib(default=None, hash=False, eq=False)
     clipboard: Optional[Clipboard] = None
     title: str = ''
     subtitle: str = ''
@@ -708,11 +709,11 @@ class Measure:
     def isEmpty(self):
         return all(voice.isEmpty for voice in self.voices)
 
-    def _promote_header_attr(name):
-        def fget(self):
+    def _promote_header_attr(name: str):
+        def fget(self: 'Measure'):
             return getattr(self.header, name)
 
-        def fset(self, value):
+        def fset(self: 'Measure', value: Any):
             setattr(self.header, name, value)
 
         return property(fget, fset)
@@ -1305,41 +1306,74 @@ class PitchClass:
     }
 
     def __attrs_post_init__(self):
-        if self.accidental is None:
-            if isinstance(self.just, str):
-                # Assume string input
-                string = self.just
-                try:
-                    value = self._notes['sharp'].index(string)
-                except ValueError:
-                    value = self._notes['flat'].index(string)
-            elif isinstance(self.just, int):
-                value = self.just % 12
-                try:
-                    string = self._notes['sharp'][value]
-                except KeyError:
-                    string = self._notes['flat'][value]
-            if string.endswith('b'):
-                accidental = -1
-            elif string.endswith('#'):
-                accidental = 1
-            else:
-                accidental = 0
-            pitch = value - accidental
-        else:
-            pitch, accidental = self.just, self.accidental
+        string: str = "C"  # Default initialization
+        value_int: int = 0    # Default initialization
+        accidental_int: int = 0 # Default initialization
 
-        self.just = pitch % 12
-        self.accidental = accidental
-        self.value = self.just + accidental
+        if self.accidental is None:
+            current_just = self.just
+            if isinstance(current_just, str):
+                string = str(current_just) # Ensure it's a string
+                try:
+                    value_int = self._notes['sharp'].index(string)
+                except ValueError:
+                    try:
+                        value_int = self._notes['flat'].index(string)
+                    except ValueError:
+                        raise GPException(f"Unknown pitch string: {string}")
+            elif isinstance(current_just, int):
+                value_int = current_just % 12
+                # Determine string representation based on preferred intonation if not set
+                preferred_intonation = self.intonation if self.intonation else 'sharp'
+                try:
+                    string = self._notes[preferred_intonation][value_int]
+                except IndexError: # Should not happen if value_int is 0-11
+                     string = self._notes['sharp'][value_int] # Fallback
+            else:
+                raise GPException(f"Invalid type for PitchClass.just: {type(current_just)}")
+
+            if string.endswith('b'):
+                accidental_int = -1
+            elif string.endswith('#'):
+                accidental_int = 1
+            else:
+                accidental_int = 0
+            pitch_int = value_int - accidental_int
+        else:
+            # If accidental is provided, self.just should ideally be an int or convertible
+            if isinstance(self.just, str): # Try to convert if it's like "C", "D" etc.
+                try:
+                    # Attempt to get base value assuming it's a natural note name
+                    pitch_int = self._notes['sharp'].index(str(self.just)) # Ensure str
+                except ValueError:
+                    try:
+                        pitch_int = self._notes['flat'].index(str(self.just)) # Ensure str
+                    except ValueError:
+                        raise GPException(f"Cannot determine base pitch from string '{self.just}' when accidental is provided.")
+            elif isinstance(self.just, int):
+                pitch_int = self.just
+            else:
+                raise GPException(f"Invalid type for PitchClass.just with explicit accidental: {type(self.just)}")
+            accidental_int = self.accidental
+
+        self.just = pitch_int % 12 # Ensure self.just is int
+        self.accidental = accidental_int
+        self.value = (self.just + self.accidental) % 12 # Ensure self.value is int and wraps around
+        
         if self.intonation is None:
-            if accidental == -1:
+            if self.accidental == -1:
                 self.intonation = 'flat'
             else:
                 self.intonation = 'sharp'
 
     def __str__(self):
-        return self._notes[self.intonation][self.value]
+        if self.intonation is None or self.value is None:
+            return "PitchUndefined"
+        try:
+            return self._notes[self.intonation][self.value]
+        except (KeyError, IndexError):
+            # Fallback if intonation/value somehow become invalid post-init
+            return self._notes['sharp'][self.value % 12]
 
 
 @hashableAttrs
@@ -1358,23 +1392,26 @@ class WahEffect:
     value: int = attr.ib(default=-1)
     display: bool = False
 
-    @value.validator
-    def checkValue(self, attrib, value):
-        if not -2 <= value <= 100:
-            raise ValueError('value must be in range from -2 to 100')
+    def __attrs_post_init__(self):
+        if not (-2 <= self.value <= 100):
+            raise ValueError(f'WahEffect value {self.value} must be in range from -2 to 100')
 
     def isOff(self):
-        return self.value == WahEffect.off.value
+        return self.value == -2 # Directly use literal for comparison
 
     def isNone(self):
-        return self.value == WahEffect.none.value
+        return self.value == -1 # Directly use literal for comparison
 
     def isOn(self):
         return 0 <= self.value <= 100
 
-
-WahEffect.off = WahEffect(-2)
-WahEffect.none = WahEffect(-1)
+# Class-level constants for convenience, ensure they are typed for clarity if needed elsewhere
+# Or, more simply, use the literal values directly in comparisons as done in isOff/isNone.
+# For Pylance to not complain about WahEffect.off.value, these would need to be defined
+# such that Pylance understands 'off' and 'none' are instances of WahEffect.
+# However, given they are simple constants, direct literal comparison is clearer.
+# WahEffect_off: ClassVar['WahEffect'] = WahEffect(-2)
+# WahEffect_none: ClassVar['WahEffect'] = WahEffect(-1)
 
 
 @hashableAttrs

@@ -1,7 +1,7 @@
 import attr
 
-from . import models as gp
-from . import gp4
+from .. import models as gp
+from . import gp4 # Stays as is
 
 
 class GP5File(gp4.GP4File):
@@ -54,6 +54,7 @@ class GP5File(gp4.GP4File):
         - Measures. See :meth:`readMeasures`.
         """
         song = gp.Song(tracks=[], measureHeaders=[])
+        self._tripletFeel = gp.TripletFeel.none # Default for GP5, will be set per measure
         song.version = self.readVersion()
         song.versionTuple = self.versionTuple
 
@@ -544,7 +545,7 @@ class GP5File(gp4.GP4File):
         self._currentVoiceNumber = None
         measure.lineBreak = gp.LineBreak(self.readByte(default=0))
 
-    def readDuration(self, flags: int) -> gp.Duration:
+    def readDuration(self, flags: int) -> 'gp.Duration':
         """Reads GP5 specific beat duration components.
         
         This method handles the GP5 way of encoding duration values and N-tuplets.

@@ -5,8 +5,9 @@ from typing import Union, Optional, List, Any, BinaryIO, Tuple, overload, Litera
 
 import attr
 
-from . import models as gp
-from .exceptions import GPException
+from .. import models as gp
+from ..exceptions import GPException
+
 
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ class GPFileBase:
 
     _supportedVersions: List[str] = []
 
-    _currentTrack: Optional[gp.Track] = None
+    _currentTrack: Optional['gp.Track'] = None
     _currentMeasureNumber: Optional[int] = None
     _currentVoiceNumber: Optional[int] = None
     _currentBeatNumber: Optional[int] = None
@@ -159,7 +160,7 @@ class GPFileBase:
         """Read length of the string stored in 1 byte and followed by character
         bytes.
         """
-        str_len = self.readByte(count=1) # Explicitly pass count=1
+        str_len = self.readByte() 
         if not isinstance(str_len, int):
             raise GPException(f"Expected int for string length, got {type(str_len)}")
         return self.readString(size, str_len)
@@ -168,7 +169,7 @@ class GPFileBase:
         """Read length of the string stored in 1 integer and followed by
         character bytes.
         """
-        str_len = self.readInt(count=1) # Explicitly pass count=1
+        str_len = self.readInt() 
         if not isinstance(str_len, int):
             raise GPException(f"Expected int for string length, got {type(str_len)}")
         return self.readString(str_len)
@@ -178,7 +179,7 @@ class GPFileBase:
         followed by length of the string in 1 byte and finally followed by
         character bytes.
         """
-        val_d = self.readInt(count=1) # Explicitly pass count=1
+        val_d = self.readInt() 
         if not isinstance(val_d, int):
              raise GPException(f"Expected int for string length prefix, got {type(val_d)}")
         d = val_d - 1

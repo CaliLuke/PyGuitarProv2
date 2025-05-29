@@ -117,7 +117,10 @@ def testChord(tmpdir, caplog, filename):
     destpath = str(tmpdir.join('no_chord_strings.gp5'))
     gp.write(song, destpath)
     if filename == 'Unknown Chord Extension.gp5':
-        iobase_logs = [log for log in caplog.records if log.name == 'guitarpro.iobase']
+        print("All captured log records for Unknown Chord Extension.gp5:")
+        for r in caplog.records:
+            print(f"  Name: {r.name}, Level: {r.levelname}, Message: {r.message}")
+        iobase_logs = [log for log in caplog.records if 'guitarpro.io.base' in log.name]
         [record] = iobase_logs
         assert 'is an unknown ChordExtension' in record.msg
     song2 = gp.parse(destpath)
