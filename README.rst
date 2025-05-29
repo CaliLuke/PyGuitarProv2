@@ -69,9 +69,35 @@ To install development version of PyGuitarPro:
 .. code-block:: sh
 
    git clone https://github.com/Perlence/PyGuitarPro.git
-   cd pyguitarpro
-   pip install -e .
+   cd PyGuitarPro
+   uv venv  # Create a virtual environment
+   uv pip install -e .[dev,docs]  # Install in editable mode with dev and docs extras
 
+Development
+-----------
+
+This project uses `uv <https://github.com/astral-sh/uv>`_ for environment and project management.
+
+Setting up the development environment:
+
+.. code-block:: sh
+
+   git clone https://github.com/Perlence/PyGuitarPro.git
+   cd PyGuitarPro
+   uv venv  # Creates a virtual environment named .venv
+   uv sync --all-extras  # Installs all dependencies including optional ones
+
+Running tests:
+
+.. code-block:: sh
+
+   uv run pytest
+
+Building documentation:
+
+.. code-block:: sh
+
+   uv run sphinx-build docs docs/_build/html
 
 Documentation
 -------------
