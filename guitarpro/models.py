@@ -2,7 +2,7 @@ from enum import Enum, IntEnum
 from fractions import Fraction
 from functools import partial
 from math import log
-from typing import Any, Callable, List, Optional, Tuple, TypeVar, Union, overload
+from typing import Any, Callable, List, Optional, Tuple, TypeVar, Union, overload, ClassVar
 
 import attr
 from pydantic import BaseModel
@@ -539,17 +539,23 @@ class MeasureHeader:
         return self.start + self.length
 
 
-@hashableAttrs
-class Color:
+class Color(BaseModel):
     """An RGB Color."""
+    model_config = {"frozen": True}
 
     r: int
     g: int
     b: int
 
+    black: ClassVar['Color']  # Will be assigned below
+    red: ClassVar['Color']  # Will be assigned below
 
-Color.black = Color(0, 0, 0)
-Color.red = Color(255, 0, 0)
+# Predefined Color instances
+COLOR_BLACK: Color = Color(r=0, g=0, b=0)
+COLOR_RED: Color = Color(r=255, g=0, b=0)
+
+Color.black = COLOR_BLACK
+Color.red = COLOR_RED
 
 
 @hashableAttrs
@@ -557,7 +563,7 @@ class Marker:
     """A marker annotation for beats."""
 
     title: str = 'Section'
-    color: Color = Color.red
+    color: Color = COLOR_RED
 
 
 @hashableAttrs
@@ -647,7 +653,7 @@ class Track:
                                                                        (4, 50), (5, 45), (6, 40)]])
     port: int = 1
     channel: MidiChannel = attr.Factory(MidiChannel)
-    color: Color = Color.red
+    color: Color = COLOR_RED
     settings: TrackSettings = attr.Factory(TrackSettings)
     useRSE: bool = False
     rse: TrackRSE = attr.Factory(TrackRSE)

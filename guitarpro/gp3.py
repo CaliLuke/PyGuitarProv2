@@ -268,7 +268,7 @@ class GP3File(GPFileBase):
         g = self.readByte()
         b = self.readByte()
         self.skip(1)
-        return gp.Color(r, g, b)
+        return gp.Color(r=r, g=g, b=b)
 
     def readTracks(self, song, trackCount, channels):
         """Read tracks.
