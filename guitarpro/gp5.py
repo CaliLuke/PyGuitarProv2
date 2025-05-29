@@ -544,6 +544,31 @@ class GP5File(gp4.GP4File):
         self._currentVoiceNumber = None
         measure.lineBreak = gp.LineBreak(self.readByte(default=0))
 
+    def _read_gp5_beat_duration(self, beat_flags1: int) -> gp.Duration:
+        """Reads GP5 specific beat duration components."""
+        raw_duration_byte = self.readSignedByte()
+        # GP5 duration encoding: actual_value = 1 << (raw_byte + 2)
+        # e.g. quarter note (value 4) is raw_byte 0. eighth (value 8) is raw_byte 1.
+        actual_duration_value = 1 << (raw_duration_byte + 2)
+        
+        is_dotted = bool(beat_flags1 & 0x01)  # Bit 0 of GP5 beat flags1 indicates dotted note
+        
+        tuplet_obj = gp.Tuplet()  # Default: no tuplet (1:1)
+        if beat_flags1 & 0x20:  # Bit 5 of GP5 beat flags1 indicates n-tuplet
+            iTuplet = self.readInt()
+            if iTuplet == 3: tuplet_obj = gp.Tuplet(enters=3, times=2)
+            elif iTuplet == 5: tuplet_obj = gp.Tuplet(enters=5, times=4)
+            elif iTuplet == 6: tuplet_obj = gp.Tuplet(enters=6, times=4)
+            elif iTuplet == 7: tuplet_obj = gp.Tuplet(enters=7, times=4)
+            elif iTuplet == 9: tuplet_obj = gp.Tuplet(enters=9, times=8)
+            elif iTuplet == 10: tuplet_obj = gp.Tuplet(enters=10, times=8)
+            elif iTuplet == 11: tuplet_obj = gp.Tuplet(enters=11, times=8)
+            elif iTuplet == 12: tuplet_obj = gp.Tuplet(enters=12, times=8)
+            elif iTuplet == 13: tuplet_obj = gp.Tuplet(enters=13, times=8)
+            # Other values of iTuplet result in a default 1:1 tuplet
+
+        return gp.Duration(value=actual_duration_value, isDotted=is_dotted, tuplet=tuplet_obj)
+
     def readBeat(self, start, voice):
         """Read beat.
 
@@ -568,8 +593,44 @@ class GP5File(gp4.GP4File):
         - Break secondary beams: :ref:`byte`. Appears if flag at
           *0x0800* is set. Signifies how much beams should be broken.
         """
-        duration = super().readBeat(start, voice)
+        flags1 = self.readByte()  # GP5 beat flags (1st byte)
         beat = self.getBeat(voice, start)
+        noteEffect = gp.NoteEffect() # Initialize fresh for each beat's notes/effects
+
+        if flags1 & 0x40:  # Status flag
+            beat.status = gp.BeatStatus(self.readByte())
+        else:
+            beat.status = gp.BeatStatus.normal
+        
+        duration_obj = self._read_gp5_beat_duration(flags1)
+        beat.duration = duration_obj
+
+        # Chord Diagram (if flag is set)
+        if flags1 & 0x02:
+            if beat.effect is None: beat.effect = gp.BeatEffect()
+            beat.effect.chord = self.readChord(len(voice.measure.track.strings))
+
+        # Text (if flag is set)
+        if flags1 & 0x04:
+            beat.text = self.readIntByteSizeString()
+
+        # Beat Effects (if flag is set)
+        if flags1 & 0x08:
+            if beat.effect is None: beat.effect = gp.BeatEffect()
+            existing_chord = beat.effect.chord # Preserve chord if already read
+            beat.effect = self.readBeatEffects(noteEffect)
+            if existing_chord: beat.effect.chord = existing_chord
+
+        # Mix Table Change (if flag is set)
+        if flags1 & 0x10:
+            if beat.effect is None: beat.effect = gp.BeatEffect()
+            mixTableChange = self.readMixTableChange(voice.measure)
+            beat.effect.mixTableChange = mixTableChange
+        
+        # Notes
+        self.readNotes(voice.measure.track, beat, duration_obj, noteEffect)
+
+        # GP5 Display Flags (flags2)
         flags2 = self.readShort()
         if flags2 & 0x0010:
             beat.octave = gp.Octave.ottava
@@ -595,7 +656,7 @@ class GP5File(gp4.GP4File):
         if flags2 & 0x0800:
             display.breakSecondary = self.readByte()
         beat.display = display
-        return duration
+        return duration_obj.time if not beat.status == gp.BeatStatus.empty else 0
 
     def readBeatStroke(self):
         """Read beat stroke.
